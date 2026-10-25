@@ -1,0 +1,45 @@
+# Pinned Windows development dependencies, including the runtime dependencies.
+# Install with the imadeo-p0 Conda environment's python -m pip.
+altgraph==0.17.5
+    # via pyinstaller
+colorama==0.4.6
+    # via pytest
+exceptiongroup==1.3.1
+    # via pytest
+iniconfig==2.3.1
+    # via pytest
+packaging==26.3
+    # via
+    #   pyinstaller
+    #   pyinstaller-hooks-contrib
+    #   pytest
+pefile==2024.8.26
+    # via pyinstaller
+pillow==12.3.0
+    # via
+    #   -r requirements.txt
+    #   pillow-heif
+pillow-heif==1.8.1
+    # via -r requirements.txt
+pluggy==1.7.0
+    # via pytest
+pygments==2.21.0
+    # via pytest
+pyinstaller==6.22.3
+    # via -r requirements-dev.in
+pyinstaller-hooks-contrib==2026.9
+    # via pyinstaller
+pytest==9.1.1
+    # via -r requirements-dev.in
+pywin32-ctypes==0.2.3
+    # via pyinstaller
+resvg-py==0.5.0
+    # via -r requirements.txt
+setuptools==84.2.1
+    # via pyinstaller
+tkinterdnd2==0.6.4
+    # via -r requirements.txt
+tomli==2.5.0
+    # via pytest
+typing-extensions==4.16.0
+    # via exceptiongroup

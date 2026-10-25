@@ -1,0 +1,10 @@
+name: imadeo-p0
+channels:
+  - https://repo.anaconda.com/pkgs/main
+  - nodefaults
+dependencies:
+  - python=3.10.22
+  - pip
+  - tk
+  - pip:
+      - -r requirements-dev.txt

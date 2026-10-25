@@ -1,0 +1,11 @@
+.venv/
+.venv-*/
+.cache/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+build/
+dist/
+tools/ffmpeg/
+test-results/
+*.egg-info/

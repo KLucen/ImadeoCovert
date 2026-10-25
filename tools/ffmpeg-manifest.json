@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "platform": "windows-x86_64",
+  "provider": "GyanD/codexffmpeg",
+  "version": "9.0.2",
+  "release_url": "https://github.com/GyanD/codexffmpeg/releases/tag/9.0.2",
+  "archive_url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip",
+  "archive_sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
+  "archive_root": "ffmpeg-9.0.2-essentials_build",
+  "required_encoders": ["libx264", "aac", "libvpx-vp9", "libopus"],
+  "required_muxers": ["mp4", "matroska", "webm"]
+}

@@ -10,6 +10,11 @@ Formatix Image Converter
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 
 </h1>
+
+> **ImadeoCovert 开发状态：P0 已建立。** 当前界面仍提供图片转换；已新增 Conda 开发环境、图片回归测试和 FFmpeg/FFprobe 检测及视频信息探测。视频转换界面尚未上线。
+>
+> 开发者请先阅读 [P0 环境与验收记录](docs/p0-baseline.zh-CN.md) 和 [视频转换开发方案](docs/video-conversion-plan.zh-CN.md)。下方为原 Formatix 功能说明。
+
 <p align="center">
   <strong>A fast, lightweight, and 100% offline batch image converter and resizer for Windows.</strong>
 </p>

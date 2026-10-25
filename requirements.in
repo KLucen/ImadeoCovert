@@ -1,0 +1,5 @@
+# Runtime dependencies; Python 3.10 remains the minimum supported version.
+Pillow>=11.3,<13
+pillow-heif>=1,<2
+tkinterdnd2>=0.4,<1
+resvg-py>=0.2,<1
