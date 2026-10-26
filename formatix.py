@@ -42,6 +42,10 @@ from settings import open_settings_window, open_donate_window
 
 # Проверка обновлений через GitHub Releases API — в update.py
 from update import fetch_latest_release, is_newer, check_for_update
+from app_metadata import VERSION, RELEASES_URL
+import settings_store
+from video_panel import VideoPanel
+from video_strings import translate as video_text
 
 # Делаем приложение четким на экранах с масштабированием (High DPI)
 try:
@@ -65,25 +69,23 @@ from converter import (
     convert_one,
 )
 
-SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".formatix_image_converter_settings.json")
+SETTINGS_FILE = str(settings_store.SETTINGS_PATH)
+_settings_error = None
 
 
 def load_settings():
-    """Загружает настройки из JSON-файла в домашней директории."""
+    """Load the fork's settings, migrating the legacy file only when absent."""
+    global _settings_error
+    _settings_error = None
     try:
-        with open(SETTINGS_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
+        return settings_store.load(SETTINGS_FILE)
+    except settings_store.SettingsError as exc:
+        _settings_error = str(exc)
         return {}
 
 
 def save_settings(data):
-    """Сохраняет настройки в JSON-файл."""
-    try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    settings_store.save(data, SETTINGS_FILE)
 
 
 def detect_system_theme():
@@ -170,8 +172,6 @@ FG3     = _palette["FG3"]
 BORDER  = _palette["BORDER"]
 CARD_TINT = _palette["CARD_TINT"]
 
-VERSION  = "1.17.4"
-
 # Не проверяем обновления чаще раза в сутки — незачем дёргать GitHub API
 # на каждый запуск, а лимит анонимных запросов (60/час на IP) и без того
 # спокойно выдерживает проверку раз в день на любое число пользователей.
@@ -190,7 +190,7 @@ def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.abspath(".")
+        base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
 
@@ -414,6 +414,12 @@ class App(BaseClass):
         self._results         = []
         self._out_dir         = tk.StringVar(value="")
         self._running         = False
+        self._batch_busy      = False
+        self._closing         = False
+        self._clear_pending   = False
+        self._image_worker    = None
+        self._image_locks     = []
+        self._settings_warned = False
         self._stop_requested  = False
         self._compare_win     = None  # ссылка на открытое окно сравнения
         self._converted_cache = {}
@@ -443,6 +449,10 @@ class App(BaseClass):
         self._style_ttk()
         self._build()
         self._bind_sort_commands()
+        self._video_panel = VideoPanel(self, self, _palette, open_path)
+        if HAS_DND:
+            self._video_panel.register_drop(DND_FILES)
+        self.protocol("WM_DELETE_WINDOW", self._request_close)
 
         remember = self._settings.get("remember_settings", True)
         if remember:
@@ -499,6 +509,60 @@ class App(BaseClass):
 
         # Небольшая задержка, чтобы не конкурировать с отрисовкой стартового экрана
         self.after(1500, self._maybe_check_updates)
+        if _settings_error:
+            self.after(100, lambda: self._settings_warning(_settings_error))
+
+    def _settings_warning(self, details):
+        if not self._settings_warned and not self._closing:
+            self._settings_warned = True
+            messagebox.showwarning(APP_NAME, video_text(self._lang, "settings_error") + "\n\n" + details, parent=self)
+
+    def _switch_mode(self, mode):
+        if self._batch_busy or self._closing or mode not in ("image", "video"):
+            return
+        self._mode = mode
+        self._image_page.pack_forget()
+        self._video_panel.pack_forget()
+        (self._image_page if mode == "image" else self._video_panel).pack(fill="both", expand=True)
+        for key, button in self._mode_buttons.items():
+            button.configure(state="disabled" if key == mode else "normal")
+
+    def _set_batch_busy(self, busy):
+        self._batch_busy = busy
+        for key, button in self._mode_buttons.items():
+            button.configure(state="disabled" if busy or key == self._mode else "normal")
+        if self._mode == "image":
+            if busy:
+                self.focus_set()
+                self._qmode_toggle.set_enabled(False)
+                def freeze(widget):
+                    if "state" in widget.keys():
+                        state = widget.cget("state")
+                        widget.configure(state="disabled")
+                        self._image_locks.append((widget, state))
+                    for child in widget.winfo_children():
+                        freeze(child)
+                for widget in self._image_parameter_blocks:
+                    freeze(widget)
+            else:
+                for widget, state in self._image_locks:
+                    widget.configure(state=state)
+                self._image_locks.clear()
+                self._refresh_quality_mode_ui()
+
+    def _request_close(self):
+        if not self._closing:
+            self._save_settings()
+            self._closing = True
+            self._stop_requested = True
+            self._video_panel.shutdown()
+            self.title(APP_NAME + " · " + video_text(self._lang, "waiting_close"))
+        if self._video_panel.session.busy or (self._image_worker and self._image_worker.is_alive()):
+            self.after(75, self._request_close)
+        else:
+            for callback in self.tk.call("after", "info"):
+                self.after_cancel(callback)
+            self.destroy()
 
     # ── локализация ───────────────────────────────────────────────────────────
 
@@ -614,7 +678,13 @@ class App(BaseClass):
             to_write.pop("out_dir", None)
             to_write.pop("filename_preset", None)
             to_write.pop("filename_tokens", None)
-        save_settings(to_write)
+        if hasattr(self, "_video_panel"):
+            to_write["video"] = self._video_panel.preferences()
+            to_write["engine_dir"] = self._video_panel.engine_dir
+        try:
+            save_settings(to_write)
+        except (OSError, ValueError) as exc:
+            self._settings_warning(str(exc))
 
     # ── проверка обновлений ──────────────────────────────────────────────────
 
@@ -635,11 +705,7 @@ class App(BaseClass):
     def _update_check_worker(self):
         """Фоновый поток автопроверки: сетевой запрос не должен блокировать GUI."""
         result = check_for_update(VERSION)
-        self._last_update_check = time.time()
-        self.after(0, self._save_settings)
-        if result:
-            tag, url = result
-            self.after(0, lambda: self._show_update_available(tag, url))
+        self._gui_queue.put({"action": "update_check", "result": result, "timestamp": time.time()})
 
     def _check_updates_now(self, on_result):
         """Проверка обновлений по клику "Проверить сейчас" в настройках.
@@ -651,17 +717,8 @@ class App(BaseClass):
         """
         def worker():
             result = fetch_latest_release()
-            self._last_update_check = time.time()
-            self.after(0, self._save_settings)
-            if result is None:
-                self.after(0, lambda: on_result("error"))
-                return
-            tag, url = result
-            if is_newer(tag, VERSION):
-                self.after(0, lambda: self._show_update_available(tag, url))
-                self.after(0, lambda: on_result("update", tag, url))
-            else:
-                self.after(0, lambda: on_result("uptodate"))
+            self._gui_queue.put({"action": "update_check", "result": result,
+                                 "timestamp": time.time(), "callback": on_result})
         threading.Thread(target=worker, daemon=True).start()
 
     def _show_update_available(self, tag, url):
@@ -681,6 +738,14 @@ class App(BaseClass):
         """Настраивает стили ttk для тёмной темы."""
         s = ttk.Style(self)
         s.theme_use("clam")
+        s.configure("TButton", background=CARD, foreground=FG, bordercolor=BORDER,
+                    lightcolor=BORDER, darkcolor=BORDER, font=("Segoe UI", 9), padding=(6, 3))
+        s.map("TButton", background=[("active", BG3), ("disabled", BG2)],
+              foreground=[("disabled", FG2), ("active", ACCENT)])
+        s.configure("TCheckbutton", background=BG, foreground=FG, font=("Segoe UI", 9))
+        s.map("TCheckbutton", background=[("active", BG)], foreground=[("disabled", FG2)])
+        s.configure("TEntry", fieldbackground=CARD, foreground=FG, insertcolor=FG)
+        s.map("TEntry", fieldbackground=[("disabled", BG2)], foreground=[("disabled", FG2)])
         s.configure("TCombobox",
                     fieldbackground=CARD, background=CARD,
                     foreground=FG, arrowcolor=ACCENT,
@@ -728,7 +793,7 @@ class App(BaseClass):
                              bg=BG2, fg=FG2, cursor="hand2")
         _ver_lbl.pack(side="left", anchor="center")
         _ver_lbl.bind("<Button-1>", lambda e: webbrowser.open(
-            "https://github.com/cyber-anderson/Formatix/releases"))
+            RELEASES_URL))
         _ver_lbl.bind("<Enter>", lambda e: _ver_lbl.config(fg=FG))
         _ver_lbl.bind("<Leave>", lambda e: _ver_lbl.config(fg=FG2))
         self._ver_lbl = _ver_lbl
@@ -753,7 +818,20 @@ class App(BaseClass):
 
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
 
-        main = tk.Frame(self, bg=BG)
+        self._mode = "image"
+        mode_bar = tk.Frame(self, bg=BG2, padx=16, pady=6)
+        mode_bar.pack(fill="x")
+        self._mode_buttons = {}
+        for mode in ("image", "video"):
+            button = ttk.Button(mode_bar, text=video_text(self._lang, mode + "_mode"),
+                                command=lambda m=mode: self._switch_mode(m))
+            button.pack(side="left", padx=(0, 6))
+            self._mode_buttons[mode] = button
+        self._mode_buttons["image"].configure(state="disabled")
+        self._image_page = tk.Frame(self, bg=BG)
+        self._image_page.pack(fill="both", expand=True)
+
+        main = tk.Frame(self._image_page, bg=BG)
         main.pack(fill="both", expand=True, padx=16, pady=12)
 
         br = tk.Frame(main, bg=BG)
@@ -823,8 +901,8 @@ class App(BaseClass):
             self._tv_dst.drop_target_register(DND_FILES)
             self._tv_dst.dnd_bind("<<Drop>>", self._drop)
 
-        tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
-        bot = tk.Frame(self, bg=BG2, padx=16, pady=6)
+        tk.Frame(self._image_page, bg=BORDER, height=1).pack(fill="x")
+        bot = tk.Frame(self._image_page, bg=BG2, padx=16, pady=6)
         bot.pack(fill="x", side="bottom")
 
         folder_row = tk.Frame(bot, bg=BG2)
@@ -943,6 +1021,7 @@ class App(BaseClass):
 
         # ПОЛЯ РАЗМЕРА (без лейбла — прячем через пустой лейбл той же высоты)
         _sz_blk = tk.Frame(ctrl_row, bg=BG2)
+        self._image_parameter_blocks = (folder_row, _fmt_blk, _qual_blk, _res_blk, _sz_blk)
         _sz_blk.pack(side="left", anchor="n", padx=(0, 16))
         tk.Label(_sz_blk, text=" ", font=("Segoe UI", 10, "bold"),
                  bg=BG2, fg=BG2).pack(anchor="w")
@@ -1525,6 +1604,8 @@ class App(BaseClass):
 
     def _pick_dir(self):
         """Открывает диалог выбора папки сохранения."""
+        if self._running or self._closing:
+            return
         d = filedialog.askdirectory(title=self.t("save_folder"))
         if d:
             self._out_dir.set(d)
@@ -1533,6 +1614,8 @@ class App(BaseClass):
 
     def _clear_dir(self):
         """Сбрасывает папку сохранения."""
+        if self._running or self._closing:
+            return
         self._out_dir.set(self.t("folder_placeholder"))
         self._dir_lbl.config(fg=FG2)
         self._settings.pop("out_dir", None)
@@ -1552,6 +1635,10 @@ class App(BaseClass):
 
     def _drop(self, e):
         """Обрабатывает сброс файлов из файлового менеджера."""
+        if self._mode == "video":
+            return self._video_panel.add_paths(self.tk.splitlist(e.data))
+        if self._running or self._closing:
+            return "break"
         self._dz_hover(False)
         new_paths = []
         for p in self.tk.splitlist(e.data):
@@ -1576,6 +1663,8 @@ class App(BaseClass):
 
     def _add(self):
         """Открывает диалог добавления файлов."""
+        if self._running or self._closing:
+            return
         files = filedialog.askopenfilenames(
             filetypes=[("Images", "*.jpg *.jpeg *.png *.webp *.bmp *.tiff *.gif *.ico"
                         + (" *.avif" if AVIF_AVAILABLE else "")
@@ -1614,23 +1703,11 @@ class App(BaseClass):
             })
 
     def _clear(self):
-        """Очищает списки файлов и результатов.
-
-        Если в этот момент идёт конвертация, физически прервать фоновый
-        поток мгновенно нельзя — он продолжит работать до своей следующей
-        проверки self._stop_requested. Поэтому помимо самой остановки мы
-        увеличиваем self._batch_id: все сообщения, которые «осиротевший»
-        воркер всё ещё отправит в self._gui_queue, окажутся подписаны
-        старым batch_id и будут проигнорированы в _listen_queue — иначе
-        строки результатов уже отменённой конвертации «оживали» бы в только
-        что очищенном списке.
-        """
+        """Clear after the image worker drains; never unlock a still-writing batch."""
         if self._running:
-            self._stop_requested = True
-            self._batch_id += 1
-            self._running = False
-            self._cbtn.config(state="normal", text=self.t("convert_btn"))
-            self._open_dir_btn.config(fg=FG3)
+            self._clear_pending = True
+            self._toggle_stop()
+            return
 
         with self._data_lock:
             self._files.clear()
@@ -1733,7 +1810,11 @@ class App(BaseClass):
     # ── обновление строк интерфейса ───────────────────────────────────────────
 
     def _update_ui_strings(self):
-        """Перерисовывает все надписи интерфейса при смене языка."""
+        """Refresh labels without changing the stable option values."""
+        if hasattr(self, "_video_panel"):
+            self._video_panel.retranslate()
+            for mode, button in self._mode_buttons.items():
+                button.configure(text=video_text(self._lang, mode + "_mode"))
         self.title(APP_NAME)
 
         # Если уже найдено обновление, метка версии показывает не "vX.X.X",
@@ -1949,6 +2030,8 @@ class App(BaseClass):
 
     def _start(self):
         """Валидирует параметры и запускает фоновый поток конвертации."""
+        if self._closing or self._mode != "image":
+            return
         if self._running:
             self._toggle_stop()
             return
@@ -2079,6 +2162,7 @@ class App(BaseClass):
         self._status_err.set("")
         self._open_dir_btn.config(fg=FG3)
         self._running = True
+        self._set_batch_busy(True)
         self._stop_requested = False
         self._cbtn.config(text=self.t("processing_btn"))
         self._prog["value"] = 0
@@ -2096,15 +2180,16 @@ class App(BaseClass):
         self._batch_id += 1
         batch_id = self._batch_id
 
-        threading.Thread(
-            target=self._convert_worker,
+        self._image_worker = threading.Thread(
+            target=self._image_worker_entry,
             args=(files_snapshot, out_dir,
                   self._fmt.get(), self._qual.get(),
                   mode_key, target_w, target_h,
                   self._overwrite_confirmed, batch_id,
                   quality_mode, target_bytes,
                   filename_preset, filename_tokens),
-            daemon=True).start()
+            daemon=False)
+        self._image_worker.start()
 
     # ── очередь событий GUI ───────────────────────────────────────────────────
 
@@ -2170,6 +2255,21 @@ class App(BaseClass):
                     self._open_dir_btn.config(fg=GREEN if task["ok"] > 0 else FG3)
                     self._running = False
                     self._stop_requested = False
+                    self._set_batch_busy(False)
+                    if self._clear_pending:
+                        self._clear_pending = False
+                        self._clear()
+
+                elif action == "update_check":
+                    self._last_update_check = task["timestamp"]
+                    self._save_settings()
+                    result, callback = task["result"], task.get("callback")
+                    if result and is_newer(result[0], VERSION):
+                        self._show_update_available(*result)
+                        if callback:
+                            callback("update", *result)
+                    elif callback:
+                        callback("uptodate" if result else "error")
 
                 self._gui_queue.task_done()
         except queue.Empty:
@@ -2177,6 +2277,14 @@ class App(BaseClass):
         self.after(100, self._listen_queue)
 
     # ── конвертация (фоновый поток) ───────────────────────────────────────────
+
+    def _image_worker_entry(self, *args):
+        try:
+            self._convert_worker(*args)
+        except Exception:
+            # Always release the GUI's batch lock, including allocation failures.
+            self._gui_queue.put({"action": "finish", "batch_id": args[8], "ok": 0,
+                                 "err": len(args[0]), "stopped": self._stop_requested})
 
     def _convert_worker(self, files_snapshot, out_dir, fmt, quality, mode_key,
                         target_w, target_h, allow_overwrite=False, batch_id=0,
@@ -2252,13 +2360,13 @@ class App(BaseClass):
                 if self._stop_requested:
                     break
         finally:
-            # wait=False — не блокируем поток в ожидании уже запущенных задач
-            # (их всё равно нельзя прервать на середине, Python не умеет убивать
-            # поток силой); cancel_futures=True снимает те, что ещё не стартовали.
-            # Именно блокирующий wait=True (поведение "with"-блока по умолчанию)
-            # и вызывал видимое зависание при остановке — метод не мог продолжить
-            # работу, пока не завершатся все параллельно запущенные конвертации.
-            pool.shutdown(wait=False, cancel_futures=True)
+            # Wait on the background thread; keep the GUI responsive and the
+            # batch lock held until already-running image writes have finished.
+            pool.shutdown(wait=True, cancel_futures=True)
+
+        for future, path in futures.items():
+            if path not in results_by_path and not future.cancelled():
+                results_by_path[path] = future.result()
 
         # Вставляем только завершённые результаты (при остановке — частичные)
         for path in files_snapshot:
@@ -2298,6 +2406,8 @@ class App(BaseClass):
 
     def _open_settings(self):
         """Открывает модальное окно настроек."""
+        if self._batch_busy or self._closing:
+            return
         colors = {"BG": BG, "BG2": BG2, "BG3": BG3, "CARD": CARD,
                   "FG": FG, "FG2": FG2, "FG3": FG3,
                   "ACCENT": ACCENT, "ACCENT2": ACCENT2, "BORDER": BORDER,

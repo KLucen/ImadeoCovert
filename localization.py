@@ -32,7 +32,7 @@ import locale
 # Используется прямо здесь, в f-строках STRINGS (например, "donate_sub").
 # Это единственный источник истины для имени приложения — главный файл
 # импортирует APP_NAME отсюда же, а не определяет свою копию.
-APP_NAME = "Formatix Image Converter"
+from app_metadata import APP_NAME
 
 LANGUAGES = {"en": "English", "ru": "Русский", "uk": "Українська", "de": "Deutsch", "fi": "Suomi", "zh": "中文"}
 

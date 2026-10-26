@@ -35,9 +35,7 @@ import json
 import urllib.request
 import urllib.error
 
-GITHUB_REPO  = "cyber-anderson/Formatix"
-API_URL      = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases/latest"
+from app_metadata import GITHUB_REPO, API_URL, RELEASES_URL
 
 
 def parse_version(version_str):
@@ -61,7 +59,8 @@ def parse_version(version_str):
 
 def is_newer(remote_version, current_version):
     """True, если remote_version строго новее current_version."""
-    return parse_version(remote_version) > parse_version(current_version)
+    remote, current = parse_version(remote_version), parse_version(current_version)
+    return remote > current or (remote == current and "-" in current_version and "-" not in remote_version)
 
 
 def fetch_latest_release(timeout=5):
@@ -75,7 +74,7 @@ def fetch_latest_release(timeout=5):
         API_URL,
         headers={
             "Accept": "application/vnd.github+json",
-            "User-Agent": "Formatix-Update-Check",
+            "User-Agent": "ImadeoCovert-Update-Check",
         },
     )
     try:

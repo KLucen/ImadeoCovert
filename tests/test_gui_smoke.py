@@ -1,6 +1,8 @@
 """Construct the original image GUI without touching the user's settings."""
 
 def test_image_app_starts_with_isolated_settings(tmp_path, monkeypatch):
+    import gc
+    gc.collect()
     import formatix
 
     monkeypatch.setattr(formatix, "SETTINGS_FILE", str(tmp_path / "settings.json"))
@@ -16,6 +18,8 @@ def test_image_app_starts_with_isolated_settings(tmp_path, monkeypatch):
         assert not app._check_updates.get()
         assert all(formatix.STRINGS[lang].get("convert_btn") for lang in formatix.LANGUAGES)
     finally:
+        app._video_panel.shutdown()
+        app._video_panel.session.thread.join(timeout=10)
         for callback in app.tk.call("after", "info"):
             app.after_cancel(callback)
         app.destroy()

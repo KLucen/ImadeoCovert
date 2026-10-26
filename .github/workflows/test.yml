@@ -2,7 +2,7 @@ name: Baseline tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/**', 'codex/**']
   pull_request:
   workflow_dispatch:
 
@@ -28,7 +28,7 @@ jobs:
         run: python scripts/setup_ffmpeg.py
       - name: Check dependencies
         run: python -m pip check
-      - name: Run image, GUI and media baselines
+      - name: Run image, video and GUI regression tests
         env:
           IMADEO_REQUIRE_FFMPEG: "1"
         run: python -m pytest -q

@@ -2,18 +2,18 @@
 <sub>
 <img src="icon.ico" height="38" width="38" alt="Logo">
 </sub>
-Formatix Image Converter
+ImadeoCovert
   
-[![Download](https://img.shields.io/github/v/release/cyber-anderson/Formatix?label=Download&style=flat&color=green&logo=download)](https://github.com/cyber-anderson/Formatix/releases/latest)
-[![License](https://img.shields.io/github/license/cyber-anderson/Formatix)](https://github.com/cyber-anderson/Formatix/blob/main/LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://github.com/cyber-anderson/Formatix#requirements)
+[![Releases](https://img.shields.io/badge/Releases-ImadeoCovert-green)](https://github.com/KLucen/ImadeoCovert/releases)
+[![License](https://img.shields.io/github/license/KLucen/ImadeoCovert)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows-blue)](#requirements)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 
 </h1>
 
-> **ImadeoCovert 开发状态：P1 转换核心已完成。** 当前界面仍提供图片转换；视频已可通过命令行转换为 MP4/MKV/WebM，支持批量、进度、取消和输出保护。视频转换界面将在 P2 接入。
+> **ImadeoCovert 开发状态：P2 桌面视频界面已接入。** 图片与视频模式独立；视频支持 MP4/MKV/WebM、媒体信息、批量进度、取消、失败重试和打开播放。当前从源码运行，包含视频引擎的便携发行包将在 P3 制作。
 >
-> 请先阅读 [P0 环境与验收记录](docs/p0-baseline.zh-CN.md)、[P1 视频转换用法与验收](docs/p1-conversion.zh-CN.md) 和 [视频转换开发方案](docs/video-conversion-plan.zh-CN.md)。下方为原 Formatix 功能说明。
+> 请先阅读 [P2 界面使用与验收](docs/p2-gui.zh-CN.md)、[P1 命令行用法](docs/p1-conversion.zh-CN.md)、[P0 环境记录](docs/p0-baseline.zh-CN.md) 和 [开发方案](docs/video-conversion-plan.zh-CN.md)。本项目基于 [cyber-anderson/Formatix](https://github.com/cyber-anderson/Formatix)，保留原作者版权和 GPL 许可；下方图片功能介绍继承自上游。
 
 <p align="center">
   <strong>A fast, lightweight, and 100% offline batch image converter and resizer for Windows.</strong>
@@ -84,14 +84,17 @@ Formatix Image Converter is a powerful desktop application designed to batch con
 ## Installation & Running
 
 ### Option 1 — Standalone Executable (Windows)
-Download the latest portable `.exe` from [Releases](https://github.com/cyber-anderson/Formatix/releases) and run it directly. No Python required, no installation, and no complex setup — just click and convert.
+Future video-enabled portable builds will be published to [ImadeoCovert Releases](https://github.com/KLucen/ImadeoCovert/releases). Packaging with the verified FFmpeg engine is planned for P3; use the source instructions below for this development version.
 
 ### Option 2 — Run from Source
 To run the script from the source code, you need **Python 3.10+** and the necessary libraries.
 
-1. Install the required dependencies:
-```bash
-pip install Pillow pillow-heif tkinterdnd2 resvg-py
+1. Create a Conda environment and install the pinned dependencies (skip creation if `imadeo-p0` already exists):
+```powershell
+conda create -n imadeo-p0 python=3.10 -y
+conda activate imadeo-p0
+python -m pip install -r requirements-dev.txt
+python scripts/setup_ffmpeg.py
 ```
 2. Make sure all project files are in the same folder:
 
@@ -102,7 +105,11 @@ pip install Pillow pillow-heif tkinterdnd2 resvg-py
 | `converter.py` | Image conversion & processing logic |
 | `compare.py` | Before/after comparison window |
 | `settings.py` | Settings and Donate dialog windows |
-| `update.py` | Checking new version |
+| `update.py` / `app_metadata.py` | Fork identity and release checks |
+| `video_panel.py` / `video_session.py` | Video UI and background operations |
+| `video_converter.py` / `task_runner.py` | Conversion and cancellable batch execution |
+| `ffmpeg_service.py` / `media_models.py` | Engine discovery, probing and data models |
+| `settings_store.py` | Versioned settings and legacy migration |
 
 3. Run the application:
 ```bash
@@ -136,9 +143,9 @@ python formatix.py
 
 ## Settings & Configuration
 
-Settings are stored locally in `~/.formatix_image_converter_settings.json`.
+Settings are stored locally in `~/.imadeocovert_settings.json` with separate `general`, `image` and `video` sections. On first use, the old `~/.formatix_image_converter_settings.json` is read for migration and preserved unchanged. Malformed or newer configuration files are preserved and reported rather than overwritten.
 
-You can enable or disable settings persistence in the Settings window. When disabled, the application always starts with default values (note: the language preference is determined by the system language).
+Turning off “remember settings” discards both image and video conversion preferences on disk. Language, theme, update preferences and the engine directory remain saved. New video controls support Chinese and English; other languages fall back to English. Theme changes take effect after restart.
 
 ---
 

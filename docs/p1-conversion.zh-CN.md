@@ -4,6 +4,8 @@
 
 P1 已实现独立于 GUI 的视频转换核心、串行任务队列和命令行入口，沿用 Anaconda `imadeo-p0` / Python 3.10.22 及项目内固定版本 FFmpeg。没有新增第三方 Python 依赖。现有 Tkinter 窗口仍为图片转换界面，视频控件和设置接入属于 P2。
 
+以上为 P1 完成时的状态。P1 提交 `1a4a5b4` 已推送至 `feat/video-conversion-core`，后续桌面视频功能参见 [P2 界面使用与验收](p2-gui.zh-CN.md)。
+
 ## 使用方法
 
 在仓库根目录，激活已创建的 Conda 环境：
