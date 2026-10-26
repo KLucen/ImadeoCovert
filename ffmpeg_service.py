@@ -76,8 +76,10 @@ def discover_engine(configured_dir: str | Path | None = None, *,
     if configured_dir is not None:
         return pair(Path(configured_dir), "configured")
     frozen = bool(getattr(sys, "frozen", False))
-    root = app_root if app_root is not None else Path(
-        getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    # Portable builds keep the engine beside the EXE, outside PyInstaller's
+    # private _internal runtime. Never depend on the launch working directory.
+    root = app_root if app_root is not None else (
+        Path(sys.executable).resolve().parent if frozen else Path(__file__).resolve().parent)
     bundled = root / "tools" / "ffmpeg"
     if bundled.exists():
         return pair(bundled, "bundled")

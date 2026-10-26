@@ -1,4 +1,4 @@
-name: Build EXE
+name: Portable Windows build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -24,34 +24,76 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
+          python -m pip check
 
-      - name: Verify image and media unit baselines
-        run: python -m pytest -q -m "not integration"
+      - name: Install and verify the pinned engine
+        run: python scripts/setup_ffmpeg.py
 
-      - name: Build EXE
+      - name: Test source code and GUI
+        env:
+          IMADEO_REQUIRE_FFMPEG: '1'
+        run: python -m pytest -q --junitxml=test-results/tests.xml
+
+      - name: Build portable ZIP and source snapshot
+        run: python scripts/build_portable.py
+
+      - name: Verify extracted executable with restricted PATH
+        shell: pwsh
         run: |
-          pyinstaller --noconsole --onefile --icon=icon.ico --add-data "icon.ico;." --collect-all tkinterdnd2 formatix.py
+          $package = Get-ChildItem -LiteralPath dist -Filter '*.zip'
+          if (@($package).Count -ne 1) { throw 'Expected exactly one portable ZIP' }
+          python scripts/smoke_portable.py $package.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Verify build output
-        run: dir dist
+      - name: Retain development artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImadeoCovert-windows-x64
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/build-summary.json
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Rename executable
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mv dist/formatix.exe dist/formatix-image-converter-v${VERSION}.exe
+      - name: Retain diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: |
+            test-results/*.xml
+            test-results/portable-smoke.json
+            build/portable/*/pyinstaller.log
+          retention-days: 14
 
-      - name: Verify renamed file
-        shell: bash
-        run: |
-          ls -la dist
-
-      - name: Create Release and Upload EXE
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Check tag and corresponding-source material
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/check_release.py --tag $env:RELEASE_TAG --download-sources
+      - uses: actions/download-artifact@v4
+        with:
+          name: ImadeoCovert-windows-x64
+          path: dist
+      - name: Create draft release for maintainer review
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
+          files: |
+            dist/*.zip
+            dist/*.sha256
+            release-sources/*
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

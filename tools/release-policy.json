@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "status": "pending",
+  "required_components": ["ffmpeg-and-external-libraries", "image-native-libraries", "python-tcl-and-runtime"],
+  "source_archives": [],
+  "review_notes": "Before public binary publication, identify exact corresponding sources and build instructions for the pinned FFmpeg external libraries, pillow-heif/resvg native libraries, and bundled runtimes. Include the verified source archives alongside the binary release. Development build and local smoke verification are available independently."
+}

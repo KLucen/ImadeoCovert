@@ -11,9 +11,9 @@ ImadeoCovert
 
 </h1>
 
-> **ImadeoCovert 开发状态：P2 桌面视频界面已接入。** 图片与视频模式独立；视频支持 MP4/MKV/WebM、媒体信息、批量进度、取消、失败重试和打开播放。当前从源码运行，包含视频引擎的便携发行包将在 P3 制作。
+> **ImadeoCovert 开发状态：已提供包含视频引擎的便携开发构建。** 图片与视频模式独立，支持视频 MP4/MKV/WebM、媒体信息、批量进度、取消、失败重试和播放结果。P3 已加入 ZIP 构建、产物自检和草稿发布流程；正式公开发行仍待干净 Windows 验收及第三方对应源码材料核对。
 >
-> 请先阅读 [P2 界面使用与验收](docs/p2-gui.zh-CN.md)、[P1 命令行用法](docs/p1-conversion.zh-CN.md)、[P0 环境记录](docs/p0-baseline.zh-CN.md) 和 [开发方案](docs/video-conversion-plan.zh-CN.md)。本项目基于 [cyber-anderson/Formatix](https://github.com/cyber-anderson/Formatix)，保留原作者版权和 GPL 许可；下方图片功能介绍继承自上游。
+> 请先阅读 [P3 便携构建与发行准备](docs/p3-portable.zh-CN.md)、[P2 界面使用与验收](docs/p2-gui.zh-CN.md)、[P1 命令行用法](docs/p1-conversion.zh-CN.md)、[P0 环境记录](docs/p0-baseline.zh-CN.md) 和 [开发方案](docs/video-conversion-plan.zh-CN.md)。本项目基于 [cyber-anderson/Formatix](https://github.com/cyber-anderson/Formatix)，保留原作者版权和 GPL 许可；下方图片功能介绍继承自上游。
 
 <p align="center">
   <strong>A fast, lightweight, and 100% offline batch image converter and resizer for Windows.</strong>
@@ -84,7 +84,7 @@ Formatix Image Converter is a powerful desktop application designed to batch con
 ## Installation & Running
 
 ### Option 1 — Standalone Executable (Windows)
-Future video-enabled portable builds will be published to [ImadeoCovert Releases](https://github.com/KLucen/ImadeoCovert/releases). Packaging with the verified FFmpeg engine is planned for P3; use the source instructions below for this development version.
+Portable development ZIPs can be built using `python scripts/build_portable.py`. Extract the entire ZIP and run `ImadeoCovert.exe`; keep `_internal` and `tools` beside it. The package includes Python and the pinned FFmpeg engine. See the [build and validation guide](docs/p3-portable.zh-CN.md). Public releases will appear at [ImadeoCovert Releases](https://github.com/KLucen/ImadeoCovert/releases) after the remaining clean-system and corresponding-source checks.
 
 ### Option 2 — Run from Source
 To run the script from the source code, you need **Python 3.10+** and the necessary libraries.
@@ -110,10 +110,11 @@ python scripts/setup_ffmpeg.py
 | `video_converter.py` / `task_runner.py` | Conversion and cancellable batch execution |
 | `ffmpeg_service.py` / `media_models.py` | Engine discovery, probing and data models |
 | `settings_store.py` | Versioned settings and legacy migration |
+| `imadeo.py` / `ImadeoCovert.spec` | Portable executable entry and one-directory build |
 
 3. Run the application:
 ```bash
-python formatix.py
+python imadeo.py
 ```
 
 ---

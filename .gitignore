@@ -8,4 +8,5 @@ build/
 dist/
 tools/ffmpeg/
 test-results/
+release-sources/
 *.egg-info/
