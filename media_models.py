@@ -3,9 +3,10 @@
 SPDX-License-Identifier: GPL-3.0-or-later
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
+from uuid import uuid4
 
 
 @dataclass(frozen=True)
@@ -107,3 +108,54 @@ VIDEO_PRESETS = (
     VideoPreset("mkv", ".mkv", "matroska", "libx264", "aac"),
     VideoPreset("webm", ".webm", "webm", "libvpx-vp9", "libopus"),
 )
+
+
+@dataclass(frozen=True)
+class VideoOptions:
+    preset: str = "mp4"
+    quality: str = "balanced"
+    speed: str = "balanced"
+    max_height: int | None = None
+    mute: bool = False
+    overwrite: bool = False
+    timeout: float | None = None
+
+
+@dataclass(frozen=True)
+class MediaTask:
+    source: Path
+    destination: Path
+    options: VideoOptions = field(default_factory=VideoOptions)
+    batch_id: str = field(default_factory=lambda: uuid4().hex)
+    task_id: str = field(default_factory=lambda: uuid4().hex)
+
+
+@dataclass(frozen=True)
+class ConversionProgress:
+    processed_seconds: float = 0.0
+    percent: float | None = None
+    speed: float | None = None
+    remaining_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class ConversionResult:
+    task_id: str
+    batch_id: str
+    source: Path
+    destination: Path
+    state: str
+    media: MediaInfo | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    details: str = ""
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class TaskEvent:
+    batch_id: str
+    task_id: str
+    state: str
+    progress: ConversionProgress | None = None
+    result: ConversionResult | None = None

@@ -2,6 +2,8 @@
 
 日期：2026-10-25。基于上游源码提交 `eb0fb3caadf57e54b34a56afbd4ec61d25b1acec`。
 
+后续状态（2026-10-26）：P0 已以 `0b8d849` 推送至 `main`，[GitHub Actions 测试](https://github.com/KLucen/ImadeoCovert/actions/runs/40191565406) 已通过。以下内容保留为 P0 实施记录，P1 进展见 [转换核心验收](p1-conversion.zh-CN.md)。
+
 P0 已建立图片回归基线、独立 Conda 开发环境、视频引擎清单和媒体探测模块。视频转换执行器、任务队列与视频界面分别属于 P1/P2，当前 GUI 仍提供原有图片功能。
 
 ## 开发环境

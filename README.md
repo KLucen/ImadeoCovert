@@ -11,9 +11,9 @@ Formatix Image Converter
 
 </h1>
 
-> **ImadeoCovert 开发状态：P0 已建立。** 当前界面仍提供图片转换；已新增 Conda 开发环境、图片回归测试和 FFmpeg/FFprobe 检测及视频信息探测。视频转换界面尚未上线。
+> **ImadeoCovert 开发状态：P1 转换核心已完成。** 当前界面仍提供图片转换；视频已可通过命令行转换为 MP4/MKV/WebM，支持批量、进度、取消和输出保护。视频转换界面将在 P2 接入。
 >
-> 开发者请先阅读 [P0 环境与验收记录](docs/p0-baseline.zh-CN.md) 和 [视频转换开发方案](docs/video-conversion-plan.zh-CN.md)。下方为原 Formatix 功能说明。
+> 请先阅读 [P0 环境与验收记录](docs/p0-baseline.zh-CN.md)、[P1 视频转换用法与验收](docs/p1-conversion.zh-CN.md) 和 [视频转换开发方案](docs/video-conversion-plan.zh-CN.md)。下方为原 Formatix 功能说明。
 
 <p align="center">
   <strong>A fast, lightweight, and 100% offline batch image converter and resizer for Windows.</strong>
